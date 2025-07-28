@@ -31,7 +31,7 @@ pipeline {
             steps {
                  withAWS(credentials: 'awscreds', region: 'us-east-1') {
                     sh """
-                    cd terraform
+                    cd terraform-aws
                     terraform init
                     terraform plan
                     terraform apply -auto-approve   
@@ -42,7 +42,7 @@ pipeline {
 
     }  
 }
-      
+
 /*
         stage('Terraform Plan') {
             steps {
