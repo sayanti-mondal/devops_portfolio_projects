@@ -2,7 +2,7 @@
 pipeline {
     agent any
     tools {
-        terraform 'Terraform 1.12.2'    
+        terraform 'Terraform 1.12.0'    
         }
     //environment {
         // AWS Credentials IDs from Jenkins Credentials. Replace with your actual IDs.
@@ -23,7 +23,7 @@ pipeline {
         stage('Checkout SCM') {
             steps {
                 // Assumes your Jenkins job is configured to pull from a Git repository
-                git branch: 'main', url: 'https://github.com/your-repo/ec2-orchestration.git' // <--- CHANGE THIS TO YOUR REPO URL
+                git branch: 'main', url: 'git@github.com:sayanti-mondal/devops_portfolio_projects.git' // <--- CHANGE THIS TO YOUR REPO URL
             }
         }
 
