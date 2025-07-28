@@ -1,0 +1,76 @@
+---
+- name: Install Docker on Ubuntu
+  hosts: all
+  become: yes
+  vars:
+    docker_gpg_key: "/etc/apt/keyrings/docker.asc"
+
+  tasks:
+    # 1. Ensure system is up-to-date
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600  # 1 hour cache
+
+    # 2. Install prerequisites
+    - name: Install required packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - software-properties-common
+        state: present
+
+    # 3. Add Docker GPG key (with fallback)
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: "{{ docker_gpg_key }}"
+        mode: '0644'
+        validate_certs: no  # Workaround for SSL issues
+      register: download_result
+      ignore_errors: yes
+
+    - name: Fallback - Download GPG key via curl
+      shell: |
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o {{ docker_gpg_key }} &&
+        chmod 644 {{ docker_gpg_key }}
+      args:
+        executable: /bin/bash
+      when: download_result is failed
+
+    # 4. Add repository with CORRECT Ubuntu codename
+    - name: Add Docker repository
+      apt_repository:
+        repo: >-
+          deb [arch={{ ansible_architecture }} signed-by={{ docker_gpg_key }}]
+          https://download.docker.com/linux/ubuntu
+          {{ ansible_distribution_release }} stable
+        filename: docker
+        state: present
+
+    # 5. FORCE cache update after repo addition
+    - name: Explicitly update apt cache
+      apt:
+        update_cache: yes
+        force_apt_get: yes  # Bypass apt alias if present
+
+    # 6. Install Docker with exact version matching
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        allow_unauthenticated: no
+        install_recommends: no

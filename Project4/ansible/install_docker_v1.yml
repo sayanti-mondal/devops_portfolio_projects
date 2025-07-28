@@ -1,0 +1,33 @@
+---
+- name: Install Docker on Ubuntu 24.04 Noble
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+
+    - name: Install Docker from Ubuntu's repository
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+        state: present
+        update_cache: yes
+
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Verify Docker Compose installation
+      command: docker compose version
+      register: compose_version
+      changed_when: false
+
+    - name: Show installation results
+      debug:
+        msg:
+          - "Docker: {{ docker_version.stdout }}"
+          - "Docker Compose: {{ compose_version.stdout }}"

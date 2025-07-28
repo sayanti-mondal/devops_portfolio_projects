@@ -1,0 +1,114 @@
+---
+- name: Deploy Multi-Tier Application with Docker Compose on Ubuntu
+  hosts: web01
+  become: yes
+
+  vars:
+    app_dir: /opt/devops-app
+
+  tasks:
+    # NEW TASK ORDER: Clean up all previous Docker APT configuration files before any apt update
+    - name: Ensure Docker APT source files are removed (pre-cleanup)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/etc/apt/sources.list.d/docker.list"
+        - "/etc/apt/sources.list.d/docker-ce.list" # Common old name
+        - "/etc/apt/sources.list.d/docker-edge.list" # If edge repo was used
+      ignore_errors: yes
+
+    - name: Ensure Docker GPG keys are removed from legacy apt-key (pre-cleanup)
+      ansible.builtin.apt_key:
+        id: "9DC858229FC7DD38854AE2D88D81803C0EBFCD88" # Docker's GPG key ID
+        state: absent
+      ignore_errors: yes
+
+    - name: Ensure Docker GPG keys are removed from new keyrings (pre-cleanup)
+      ansible.builtin.file:
+        path: "/etc/apt/keyrings/docker.asc"
+        state: absent
+      ignore_errors: yes
+
+    - name: Ensure apt cache is updated
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install necessary packages for Docker installation (for curl, etc.)
+      ansible.builtin.apt:
+        name: ['apt-transport-https', 'ca-certificates', 'curl', 'gnupg-agent', 'software-properties-common', 'python3-pip']
+        state: present
+
+    # Ensure python3-certifi is installed for SSL connections (general good practice)
+    - name: Install python3-certifi for SSL connections
+      ansible.builtin.apt:
+        name: python3-certifi
+        state: present
+
+    # Install Docker Engine using Docker's convenience script
+    - name: Install Docker Engine using convenience script
+      ansible.builtin.shell: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo sh get-docker.sh
+      args:
+        creates: /usr/bin/docker # This task will only run if docker is not already installed
+      # This script handles adding the GPG key, setting up the repository,
+      # and installing docker-ce, docker-ce-cli, and containerd.io.
+      # It's the most reliable method for Docker installation on various Linux systems.
+
+    # Debug apt-cache policy for docker-ce (kept for verification, should now show candidate)
+    - name: Debug apt-cache policy for docker-ce
+      ansible.builtin.command: apt-cache policy docker-ce
+      register: docker_ce_policy
+      failed_when: false
+      changed_when: false
+
+    - name: Print apt-cache policy output for docker-ce
+      ansible.builtin.debug:
+        var: docker_ce_policy.stdout_lines
+
+    - name: Ensure Docker service is running and enabled
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add remote user to 'docker' group
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Download Docker Compose binary
+      ansible.builtin.get_url:
+        url: https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: docker
+        mode: '0755'
+        recurse: yes
+
+    - name: Copy application files to remote server
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ app_dir }}/"
+        owner: "{{ ansible_user }}"
+        group: docker
+        mode: '0644'
+      loop:
+        - ../Dockerfile
+        - ../docker-compose.yml
+        - ../app/
+
+    - name: Start Docker Compose services (using v2 module)
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        state: present
+        build: yes
+

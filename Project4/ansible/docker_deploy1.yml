@@ -1,0 +1,154 @@
+---
+- name: Install Docker and deploy Docker Compose application
+  hosts: docker_server # Target the host defined in your inventory
+  become: yes          # Run tasks with sudo/root privileges
+
+  vars:
+    app_dir: /opt/devops-app # Central directory for your application files on the remote server
+    docker_compose_version: "v2.24.5" # Version of Docker Compose CLI to install
+    docker_compose_path: /usr/local/bin/docker-compose # Path where Docker Compose CLI will be installed
+    docker_user: "{{ ansible_user }}" # Use the same user Ansible connects as (e.g., 'ubuntu')
+
+  tasks:
+    # --- System Preparation and Docker Installation ---
+
+    - name: Ensure apt cache is updated
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install necessary system packages (for curl, etc.)
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg-agent
+          - software-properties-common
+          - python3-pip # Ensure pip is available for any future Python dependencies
+        state: present
+
+    - name: Install python3-certifi for SSL connections
+      ansible.builtin.apt:
+        name: python3-certifi
+        state: present
+
+    # Clean up any conflicting Docker APT configurations from previous attempts
+    - name: Ensure Docker APT source files are removed (pre-cleanup)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/etc/apt/sources.list.d/docker.list"
+        - "/etc/apt/sources.list.d/docker-ce.list"
+        - "/etc/apt/sources.list.d/docker-edge.list"
+      ignore_errors: yes
+
+    - name: Ensure Docker GPG keys are removed from legacy apt-key (pre-cleanup)
+      ansible.builtin.apt_key:
+        id: "9DC858229FC7DD38854AE2D88D81803C0EBFCD88" # Docker's GPG key ID
+        state: absent
+      ignore_errors: yes
+
+    - name: Ensure Docker GPG keys are removed from new keyrings (pre-cleanup)
+      ansible.builtin.file:
+        path: "/etc/apt/keyrings/docker.asc"
+        state: absent
+      ignore_errors: yes
+
+    - name: Install Docker Engine using convenience script
+      ansible.builtin.shell: |
+        curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+        sudo sh /tmp/get-docker.sh
+      args:
+        creates: /usr/bin/docker # This task will only run if docker is not already installed
+      # The script handles adding the GPG key, setting up the repository, and installing Docker packages.
+
+    - name: Ensure Docker service is running and enabled
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+        daemon_reload: yes # Reload systemd configs if needed
+
+    - name: Add remote user to 'docker' group
+      ansible.builtin.user:
+        name: "{{ docker_user }}" # Use the user Ansible connects as (e.g., 'ubuntu')
+        groups: docker
+        append: yes
+      # Note: Group membership changes require a new login session to take effect for interactive users.
+      # For Ansible, subsequent tasks run with 'become: yes' so it's usually fine.
+
+    #- name: Download Docker Compose binary
+     # ansible.builtin.get_url:
+      #  url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-Linux-x86_64"
+       # dest: "{{ docker_compose_path }}"
+       # mode: '0755'
+       # force: yes # Overwrite if it exists
+
+   
+
+    # MODIFIED TASK: Download Docker Compose binary using curl
+    - name: Download Docker Compose binary using curl
+      ansible.builtin.command: >
+        curl -fsSL "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-Linux-x86_64"
+        -o "{{ docker_compose_path }}"
+      args:
+        creates: "{{ docker_compose_path }}" # Ensure this task only runs if the file doesn't exist
+
+    # --- Application Deployment ---
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ docker_user }}" # Owner should be the user who will run docker-compose
+        group: docker             # Group should be 'docker' for socket access
+        mode: '0755'
+        recurse: yes
+
+    - name: Copy application files to remote server
+      ansible.builtin.copy:
+        src: "{{ item }}" # These paths are relative to the playbook file on the control node
+        dest: "{{ app_dir }}/"
+        owner: "{{ docker_user }}"
+        group: docker
+        mode: '0644' # Default mode for files, adjust if executables are copied
+      loop:
+        - ../Dockerfile           # Relative to /vagrant/Project4/ansible/ -> /vagrant/Project4/Dockerfile
+        - ../docker-compose.yml   # Relative to /vagrant/Project4/ansible/ -> /vagrant/Project4/docker-compose.yml
+        - ../app                 # Relative to /vagrant/Project4/ansible/ -> /vagrant/Project4/app/
+      # Ensure these files/directories exist in your host's ansible_hybrid_project/Project4/ directory.
+
+    - name: Build and start containers with Docker Compose
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}" # Path to the directory containing docker-compose.yml on the remote server
+        build: always                   # Build images if they don't exist or are updated
+        # pull: yes                  # Uncomment if you want to pull images before building
+        recreate: always               # Recreate containers even if they exist (useful for updates)
+        state: present               # Ensure services are running
+      # Requires 'community.docker' collection installed on the control node:
+      # ansible-galaxy collection install community.docker
+
+    # --- Verification (Optional) ---
+
+    - name: Verify Docker installation
+      ansible.builtin.command: docker --version
+      register: docker_version
+      changed_when: false
+      become: yes # Ensure this runs with sudo, or user is in docker group and session refreshed
+
+    - name: Verify Docker Compose installation
+      ansible.builtin.command: docker compose version # Note: 'docker compose' for v2
+      register: docker_compose_cli_version
+      changed_when: false
+      become: yes # Ensure this runs with sudo, or user is in docker group and session refreshed
+
+    - name: Show Docker version
+      ansible.builtin.debug:
+        msg: "{{ docker_version.stdout }}"
+
+    - name: Show Docker Compose version
+      ansible.builtin.debug:
+        msg: "{{ docker_compose_cli_version.stdout }}"
+

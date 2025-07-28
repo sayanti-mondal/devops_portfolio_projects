@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Message Board</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 0 15px; background-color: #f4f4f4; color: #333; }
+        h1, h2 { color: #0056b3; }
+        form { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        input[type="text"] { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        input[type="submit"] { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        input[type="submit"]:hover { background-color: #0056b3; }
+        .message-list { list-style: none; padding: 0; }
+        .message-item { background-color: #e9ecef; border: 1px solid #dee2e6; margin-bottom: 10px; padding: 15px; border-radius: 6px; }
+        footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; color: #666; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>DevOps Message Board</h1>
+
+    <form method="post" action="/add_message">
+        <label for="message">Add a new message:</label><br>
+        <input type="text" id="message" name="message" placeholder="Type your message here..." required><br>
+        <input type="submit" value="Add Message">
+    </form>
+
+    <h2>Recent Messages</h2>
+    <ul class="message-list">
+        {% for message in messages %}
+            <li class="message-item">{{ message[0] }}</li>
+        {% else %}
+            <li class="message-item">No messages yet. Add one!</li>
+        {% endfor %}
+    </ul>
+
+    <footer>
+        <p>&copy; 2024 DevOps Project. Made for learning.</p>
+    </footer>
+</body>
+</html>

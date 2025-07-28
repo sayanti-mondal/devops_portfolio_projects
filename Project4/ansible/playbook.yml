@@ -1,0 +1,111 @@
+---
+- name: Deploy Multi-Tier Application with Docker Compose
+  hosts: webservers # Target hosts defined in inventory.ini under the [webservers] group
+  become: yes # Run tasks with sudo/root privileges
+
+  vars:
+    app_dir: /opt/devops-app # Directory on the remote server where the app will be deployed
+
+  tasks:
+    - name: Ensure apt cache is updated (for Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure yum cache is updated (for RedHat/CentOS)
+      ansible.builtin.yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+
+    - name: Install necessary packages for Docker installation (apt)
+      ansible.builtin.apt:
+        name: ['apt-transport-https', 'ca-certificates', 'curl', 'gnupg-agent', 'software-properties-common']
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install necessary packages for Docker installation (yum)
+      ansible.builtin.yum:
+        name: ['yum-utils', 'device-mapper-persistent-data', 'lvm2']
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Add Docker GPG apt key
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker GPG yum key
+      ansible.builtin.rpm_key:
+        state: present
+        key: https://download.docker.com/linux/centos/gpg
+      when: ansible_os_family == "RedHat"
+
+    - name: Add Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker yum repository
+      ansible.builtin.yum_repository:
+        name: docker-ce
+        description: Docker CE
+        baseurl: https://download.docker.com/linux/centos/7/$basearch/stable
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        enabled: yes
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Docker Engine
+      ansible.builtin.package:
+        name: ['docker-ce', 'docker-ce-cli', 'containerd.io']
+        state: present
+
+    - name: Ensure Docker service is running and enabled
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add remote user to 'docker' group
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+      # Requires a re-login for the group change to take effect in the current session.
+      # For Ansible, subsequent tasks will run with sudo, so it's fine.
+      # You might need to `sudo su - {{ ansible_user }}` on the remote server manually if you want to run `docker` without `sudo` immediately after this.
+
+    - name: Download Docker Compose binary
+      ansible.builtin.get_url:
+        url: https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755' # Make it executable
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: docker # or the primary group of ansible_user
+        mode: '0755'
+
+    - name: Copy application files to remote server
+      ansible.builtin.copy:
+        src: "{{ item }}" # Points to files/directories in the current playbook's directory or relative to it
+        dest: "{{ app_dir }}/"
+        owner: "{{ ansible_user }}"
+        group: docker # or the primary group of ansible_user
+        mode: '0644' # Default mode for files
+      loop:
+        - ../Dockerfile           # Relative path from ansible folder to project root
+        - ../docker-compose.yml   # Relative path from ansible folder to project root
+        - ../app/                 # Relative path from ansible folder to app folder (copies entire directory)
+
+    - name: Start Docker Compose services
+      ansible.builtin.community.docker.docker_compose:
+        project_src: "{{ app_dir }}"
+        state: present # Ensures the services are running
+      args:
+        build: yes # Build images if they don't exist or are updated (useful for CI/CD)

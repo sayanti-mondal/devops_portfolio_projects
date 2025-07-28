@@ -1,0 +1,150 @@
+---
+- name: Install Docker and deploy Docker Compose application
+  hosts: docker_server
+  become: yes
+  vars:
+    app_dir: /opt/devops-app
+    docker_compose_version: "v2.24.5"
+    docker_compose_path: /usr/local/bin/docker-compose
+    docker_user: "{{ ansible_user }}"
+
+  tasks:
+    # Update apt package index
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    # Install required system packages
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg-agent
+          - software-properties-common
+        state: present
+
+    
+   # NEW TASK: Ensure python3-certifi is installed for HTTPS certificate validation
+    - name: Install python3-certifi for SSL connections
+      ansible.builtin.apt:
+        name: python3-certifi
+        state: present
+      # This package provides the necessary CA certificates for Python's SSL/TLS connections,
+      # which can resolve 'cert_file' attribute errors when downloading keys over HTTPS.
+      
+    # Add Docker GPG key
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    # Add Docker repository
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+
+    # Install Docker packages
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+
+    # Add user to docker group
+    - name: Add user to docker group
+      user:
+        name: "{{ docker_user }}"
+        groups: docker
+        append: yes
+
+    # Download and install Docker Compose
+    - name: Download Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-linux-x86_64"
+        dest: "{{ docker_compose_path }}"
+        mode: '0755'
+        force: yes
+
+    # Verify Docker and Docker Compose installations
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Verify Docker Compose installation
+      command: docker-compose --version
+      register: docker_compose_version
+      changed_when: false
+
+    - name: Show Docker version
+      debug:
+        msg: "{{ docker_version.stdout }}"
+
+    - name: Show Docker Compose version
+      debug:
+        msg: "{{ docker_compose_version.stdout }}"
+
+    # Create directory for docker-compose files
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ docker_user }}"
+        group: docker
+        mode: '0755'
+
+    # Copy docker-compose.yml file (you would replace this with your actual compose file)
+    #  - name: Copy docker-compose.yml
+    #copy:
+    #   content: |
+    #     version: '3'
+    #     services:
+    #       web:
+    #         image: nginx:alpine
+    #         ports:
+    #           - "80:80"
+    #       app:
+    #         image: myapp:latest
+    #         build: .
+    #         ports:
+    #           - "8080:8080"
+    #   dest: /opt/myapp/docker-compose.yml
+    #   mode: '0644'
+    # when: false  # Set to true if
+
+    # Alternatively, uncomment this to use your local docker-compose file
+    # - name: Copy local docker-compose.yml
+    #   copy:
+    #     src: path/to/your/docker-compose.yml
+    #     dest: /opt/myapp/docker-compose.yml
+    #     mode: '0644'
+
+    - name: Copy application files to remote server
+      copy:
+        src: "{{ item }}" # These paths are relative to the playbook file on the control node
+        dest: "{{ app_dir }}"
+        owner: "{{ docker_user }}"
+        group: docker
+        mode: '0644' # Default mode for files, adjust if executables are copied
+      loop:
+        - ../Dockerfile           # Relative to /vagrant/Project4/ansible/ -> /vagrant/Project4/Dockerfile
+        - ../docker-compose.yml   # Relative to /vagrant/Project4/ansible/ -> /vagrant/Project4/docker-compose.yml
+        - ../app/                 # Relative to /vagrant/Project4/ansible/ -> /vagrant/Project4/app/
+      # Ensure these files/directories exist in your host's ansible_hybrid_project/Project4/ directory.
+
+    # Build and start containers with Docker Compose
+    - name: Build and start containers
+      community.docker.docker_compose_v2:
+              # project_src: /opt/myapp
+        project_src: "{{ app_dir }}"
+        build: always   
+        #pull: yes
+        recreate: always
+        state: present

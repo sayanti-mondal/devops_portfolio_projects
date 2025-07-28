@@ -1,0 +1,102 @@
+---
+- name: Deploy Multi-Tier Application with Docker Compose on Ubuntu
+  hosts: web01 # Target hosts defined in inventory.ini under the [webservers] group
+  become: yes       # Run tasks with sudo/root privileges
+
+  vars:
+    app_dir: /opt/devops-app # Directory on the remote server where the app will be deployed
+
+  tasks:
+    - name: Ensure apt cache is updated
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install necessary packages for Docker installation
+      ansible.builtin.apt:
+        name: ['apt-transport-https', 'ca-certificates', 'curl', 'gnupg-agent', 'software-properties-common']
+        state: present
+
+    # NEW TASK: Ensure python3-certifi is installed for HTTPS certificate validation
+    - name: Install python3-certifi for SSL connections
+      ansible.builtin.apt:
+        name: python3-certifi
+        state: present
+      # This package provides the necessary CA certificates for Python's SSL/TLS connections,
+      # which can resolve 'cert_file' attribute errors when downloading keys over HTTPS.
+
+    - name: Add Docker GPG apt key
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ ansible_architecture }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      # Using ansible_architecture (e.g., amd64) and ansible_distribution_release (e.g., jammy, focal)
+      # to ensure it's robust across different Ubuntu versions/architectures.
+
+    - name: Install Docker Engine
+      ansible.builtin.package:
+        name: ['docker-ce', 'docker-ce-cli', 'containerd.io']
+        state: present
+
+    - name: Ensure Docker service is running and enabled
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add remote user to 'docker' group
+      ansible.builtin.user:
+        name: "{{ ansible_user }}" # This is the user Ansible connects as (e.g., 'ubuntu' for EC2)
+        groups: docker
+        append: yes
+      # Note: For the group change to take effect for the *current* SSH session,
+      # a re-login is typically required. However, Ansible tasks
+      # executed after this (with 'become: yes') will correctly use sudo,
+      # so it's generally not an issue for subsequent Ansible tasks.
+
+    - name: Download Docker Compose binary
+      ansible.builtin.get_url:
+        url: https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755' # Make it executable
+      # Consider installing via pip3 if you prefer Python package management,
+      # but direct download is also common for simple installations.
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: docker # Assign 'docker' group for permissions with Docker sockets
+        mode: '0755'
+        recurse: yes # Ensure permissions apply to subdirectories if path is created recursively
+
+    - name: Copy application files to remote server
+      ansible.builtin.copy:
+        src: "{{ item }}" # These paths are relative to the playbook file
+        dest: "{{ app_dir }}/"
+        owner: "{{ ansible_user }}"
+        group: docker
+        mode: '0644' # Default mode for files
+      loop:
+        - ../Dockerfile           # Assuming Dockerfile is in the Project4 directory
+        - ../docker-compose.yml   # Assuming docker-compose.yml is in the Project4 directory
+        - ../app/                 # Assuming 'app' directory is in the Project4 directory
+      # Important: These paths are relative to where your playbook (this file) is located.
+      # If your playbook is in `ansible_hybrid_project/Project4/ansible/`,
+      # then `../` refers to `ansible_hybrid_project/Project4/`.
+      # Ensure that `Dockerfile`, `docker-compose.yml`, and `app/` are indeed
+      # directly within `ansible_hybrid_project/Project4/`.
+
+    - name: Start Docker Compose services
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        state: present # Ensures the services are running
+        build: yes     # Build images if they don't exist or are updated
+      # Note: The 'community.docker.docker_compose' module requires the 'community.docker' collection.
+      # Ensure it's installed on your Ansible control node:
+      # `ansible-galaxy collection install community.docker`
+
