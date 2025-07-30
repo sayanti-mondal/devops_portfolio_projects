@@ -31,6 +31,11 @@ pipeline {
                     echo "EC2 Instance Public IP: ${publicIp}" // Verify the IP is captured
                      // Capture the public IP from Terraform output
                     //def publicIp = terraform output -raw public_ip
+
+                    // Ensure the target directory exists
+                    sh "mkdir -p Project4/ansible" 
+
+                    
                     sh """
                     echo '[ansible_target]' > Project4/ansible/inventory.ini
                     echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> ansible/inventory.ini
