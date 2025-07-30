@@ -18,7 +18,8 @@ pipeline {
 
         stage('Terraform Executions') {
             steps {
-                 withAWS(credentials: 'awscreds', region: 'us-east-1') {
+                script {
+                  withAWS(credentials: 'awscreds', region: 'us-east-1') {
                     sh """
                     cd terraform-aws
                     terraform init
@@ -39,7 +40,13 @@ pipeline {
                     """
                 }
             }
+
         }
+     }
+
+
+
+
 
         stage('Ansible Verify EC2') {
             steps {
