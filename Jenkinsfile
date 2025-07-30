@@ -37,9 +37,9 @@ pipeline {
 
 
                     sh """
-                    // echo '[ansible_target]' > Project4/ansible/inventory.ini
-                    // echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> ansible/inventory.ini
-                    // echo '' >> ansible/inventory.ini # Add a newline for good measure
+                    # echo '[ansible_target]' > Project4/ansible/inventory.ini
+                    # echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> ansible/inventory.ini
+                    # echo '' >> ansible/inventory.ini # Add a newline for good measure
 
                     echo '[ansible_target]' > inventory.ini
                     echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> inventory.ini
