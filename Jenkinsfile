@@ -1,23 +1,12 @@
 // Jenkinsfile
 pipeline {
+
     agent any
+
     tools {
         terraform 'Terraform 1.12.0'    
         }
-    //environment {
-        // AWS Credentials IDs from Jenkins Credentials. Replace with your actual IDs.
-       // AWS_ACCESS_KEY_ID_CRED = credentials('your-aws-access-key-id-credential-id') // e.g., 'aws-access-key-id'
-       // AWS_SECRET_ACCESS_KEY_CRED = credentials('your-aws-secret-access-key-credential-id') // e.g., 'aws-secret-access-key'
-
-        // SSH Key Credential ID from Jenkins Credentials. Replace with your actual ID.
-       // EC2_SSH_KEY_CRED = 'ec2-ssh-key' // ID of your SSH Username with Private Key credential
-
-        // Terraform variables (must match terraform/variables.tf)
-        //TF_VAR_aws_region = 'us-east-1' // Change to your preferred region
-        //TF_VAR_instance_type = 't2.micro'
-        //TF_VAR_ami_id = 'ami-053b0a53597fe097f' // VERIFY THIS FOR YOUR REGION!
-        //TF_VAR_key_name = 'your-ec2-key-pair-name' // <--- CHANGE THIS TO YOUR KEY PAIR NAME
-    //}
+   
 
     stages {
         stage('Checkout SCM') {
@@ -34,7 +23,30 @@ pipeline {
                     cd terraform-aws
                     terraform init
                     terraform plan
-                    terraform apply -auto-approve   
+                    terraform apply -auto-approve  
+
+                     // Capture the public IP from Terraform output
+                    def publicIp = terraform output -raw public_ip
+                    echo '[ansible_target]' > Project4/ansible/inventory.ini
+                    echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> ansible/inventory.ini
+                    echo '' >> ansible/inventory.ini # Add a newline for good measure
+                        
+                    echo "Ansible inventory.ini generated successfully." 
+                    """
+                }
+            }
+        }
+
+        stage('Ansible Verify EC2') {
+            steps {
+                // Use sshagent to make the private key available to Ansible
+                withAWS(credentials: 'awscreds', region: 'us-east-1') {
+                    sh """
+                    cd ansible
+                    # Wait for SSH to be ready on the new instance (important!)
+                    # We use a ping command with a retry loop to ensure connectivity
+                    #ansible -i inventory.ini --limit ec2_instance --private-key ${HOME}/.ssh/id_rsa -m ping -u ec2-user --connection=ssh --timeout 60 --retries 10 --delay 10 playbook.yml
+                    ansible -i inventory.ini -m ping ansible_target
                     """
                 }
             }
