@@ -33,16 +33,26 @@ pipeline {
                     //def publicIp = terraform output -raw public_ip
 
                     // Ensure the target directory exists
+                    //sh "mkdir -p Project4/ansible" 
+
+
+                    sh """
+                    // echo '[ansible_target]' > Project4/ansible/inventory.ini
+                    // echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> ansible/inventory.ini
+                    // echo '' >> ansible/inventory.ini # Add a newline for good measure
+
+                    echo '[ansible_target]' > inventory.ini
+                    echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> inventory.ini
+                    echo '' >> inventory.ini # Add a newline for good measure   
+                    """
+                    echo "Ansible inventory.ini generated successfully." 
+
+                    // --- STEP 2: Ensure the target directory exists ---
                     sh "mkdir -p Project4/ansible" 
 
-                    
-                    sh """
-                    echo '[ansible_target]' > Project4/ansible/inventory.ini
-                    echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> ansible/inventory.ini
-                    echo '' >> ansible/inventory.ini # Add a newline for good measure
-                        
-                    echo "Ansible inventory.ini generated successfully." 
-                    """
+                   // --- STEP 3: Move the inventory file to its final destination ---
+                    sh "mv inventory.ini Project4/ansible/inventory.ini"
+                    echo "Ansible inventory.ini moved to Project4/ansible/."
                 }
             }
 
