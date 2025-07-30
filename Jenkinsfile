@@ -68,7 +68,7 @@ pipeline {
                 // Use sshagent to make the private key available to Ansible
                 withAWS(credentials: 'awscreds', region: 'us-east-1') {
                     sh """
-                    cd ansible
+                    cd Project4/ansible
                     # Wait for SSH to be ready on the new instance (important!)
                     # We use a ping command with a retry loop to ensure connectivity
                     #ansible -i inventory.ini --limit ec2_instance --private-key ${HOME}/.ssh/id_rsa -m ping -u ec2-user --connection=ssh --timeout 60 --retries 10 --delay 10 playbook.yml
