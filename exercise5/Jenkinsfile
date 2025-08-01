@@ -1,0 +1,29 @@
+// Jenkinsfile
+pipeline {
+   agent any 
+     
+   stages{
+     stage('Checkout SCM'){
+         steps{
+                  git branch: 'main',
+                  url: 'https://github.com/sayanti-mondal/ansible/tree/main/ansible/exercise5/' 
+         }
+     }     
+
+     stage("Execute Ansible"){
+                   
+         steps{
+             
+            ansiblePlaybook credentialsId: 'jenkins_ansible_ec2', 
+                            disableHostKeyChecking: true, 
+                            installation: 'ansible', 
+                            inventory: 'inventory', 
+                            playbook: 'web.yml' 
+                                
+        }
+
+     }
+
+
+}
+
