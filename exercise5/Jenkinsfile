@@ -13,14 +13,15 @@ pipeline {
      stage("Execute Ansible"){
                    
          steps{
-             
+           dir('exercise5/') {  
             ansiblePlaybook credentialsId: 'jenkins_ansible_ec2', 
                             disableHostKeyChecking: true, 
                             installation: 'ansible', 
                             inventory: 'inventory', 
                             playbook: 'web.yml' 
                                 
-        }
+           }
+            }
 
      }
 
