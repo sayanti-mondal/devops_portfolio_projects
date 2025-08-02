@@ -53,7 +53,7 @@ pipeline {
                         sh """
                         mv inventory.ini exercise5/
                         echo 'Ansible inventory.ini moved to exercise5/'
-                        """"
+                        """
 
                    
                 }
