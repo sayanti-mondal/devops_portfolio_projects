@@ -12,6 +12,14 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["0.0.0.0/0"] # WARNING: For production, restrict this to specific IPs (e.g., Jenkins server IP)
   }
 
+  ingress {
+    description = "HTTP from anywhere"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # WARNING: For production, restrict this to specific IPs (e.g., Jenkins server IP)
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
