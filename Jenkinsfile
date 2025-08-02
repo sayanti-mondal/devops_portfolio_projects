@@ -9,12 +9,12 @@ pipeline {
    
 
     stages {
-        stage('Checkout SCM') {
-            steps {
-                // Assumes your Jenkins job is configured to pull from a Git repository
-                git branch: 'main', url: 'git@github.com:sayanti-mondal/devops_portfolio_projects.git' // <--- CHANGE THIS TO YOUR REPO URL
-            }
-        }
+        // stage('Checkout SCM') {
+        //     steps {
+        //         // Assumes your Jenkins job is configured to pull from a Git repository
+        //         git branch: 'main', url: 'git@github.com:sayanti-mondal/devops_portfolio_projects.git' // <--- CHANGE THIS TO YOUR REPO URL
+        //     }
+        // }
 
         stage('Terraform Executions') {
             steps {
@@ -37,22 +37,26 @@ pipeline {
 
 
                     sh """
-                    # echo '[ansible_target]' > Project4/ansible/inventory.ini
+                    # echo '[ansible_target]' > exercise5/inventory.ini
                     # echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> ansible/inventory.ini
                     # echo '' >> ansible/inventory.ini # Add a newline for good measure
 
-                    echo '[ansible_target]' > inventory.ini
-                    echo '${publicIp} ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> inventory.ini
+                    echo '[webservers]' > inventory.ini
+                    echo '${publicIp} 
+                    # ansible_user=ubuntu ansible_ssh_private_key_file=${HOME}/.ssh/id_rsa' >> inventory.ini
                     echo '' >> inventory.ini # Add a newline for good measure   
-                    """
+                    
                     echo "Ansible inventory.ini generated successfully." 
 
                     // --- STEP 2: Ensure the target directory exists ---
-                    sh "mkdir -p Project4/ansible" 
+                    //sh "mkdir -p Project4/ansible" 
 
                    // --- STEP 3: Move the inventory file to its final destination ---
-                    sh "mv inventory.ini Project4/ansible/inventory.ini"
-                    echo "Ansible inventory.ini moved to Project4/ansible/."
+                   // sh "mv inventory.ini Project4/ansible/inventory.ini"
+                    mv inventory.ini exercise5/
+                    echo 'Ansible inventory.ini moved to Project4/ansible/'"
+
+                   """ 
                 }
             }
 
@@ -67,13 +71,22 @@ pipeline {
             steps {
                 // Use sshagent to make the private key available to Ansible
                 withAWS(credentials: 'awscreds', region: 'us-east-1') {
-                    sh """
-                    cd Project4/ansible
-                    # Wait for SSH to be ready on the new instance (important!)
-                    # We use a ping command with a retry loop to ensure connectivity
-                    #ansible -i inventory.ini --limit ec2_instance --private-key ${HOME}/.ssh/id_rsa -m ping -u ec2-user --connection=ssh --timeout 60 --retries 10 --delay 10 playbook.yml
-                    ansible -i inventory.ini -m ping ansible_target
-                    """
+                    // sh """
+                    // cd exercise5
+                    // # Wait for SSH to be ready on the new instance (important!)
+                    // # We use a ping command with a retry loop to ensure connectivity
+                    // #ansible -i inventory.ini --limit ec2_instance --private-key ${HOME}/.ssh/id_rsa -m ping -u ec2-user --connection=ssh --timeout 60 --retries 10 --delay 10 playbook.yml
+                    // ansible -i inventory.ini -m ping ansible_target
+                    // """
+
+                    dir('exercise5/') {  
+                      ansiblePlaybook credentialsId: 'jenkins_ansible_ec2', 
+                                      disableHostKeyChecking: true, 
+                                      installation: 'ansible', 
+                                      inventory: 'inventory.ini', 
+                                      playbook: 'web.yml' 
+                                
+                    }
                 }
             }
         }
