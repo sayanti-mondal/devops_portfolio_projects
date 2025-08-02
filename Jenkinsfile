@@ -9,12 +9,12 @@ pipeline {
    
 
     stages {
-        // stage('Checkout SCM') {
-        //     steps {
-        //         // Assumes your Jenkins job is configured to pull from a Git repository
-        //         git branch: 'main', url: 'git@github.com:sayanti-mondal/devops_portfolio_projects.git' // <--- CHANGE THIS TO YOUR REPO URL
-        //     }
-        // }
+        stage('Checkout SCM') {
+            steps {
+                // Assumes your Jenkins job is configured to pull from a Git repository
+                git branch: 'main', url: 'git@github.com:sayanti-mondal/devops_portfolio_projects.git' // <--- CHANGE THIS TO YOUR REPO URL
+            }
+        }
 
         stage('Terraform Executions') {
             steps {
@@ -48,15 +48,14 @@ pipeline {
                     
                     echo "Ansible inventory.ini generated successfully." 
 
-                    // --- STEP 2: Ensure the target directory exists ---
-                    //sh "mkdir -p Project4/ansible" 
+                    """
+                    // Move the inventory file to its final destination.
+                        sh """
+                        mv inventory.ini exercise5/
+                        echo 'Ansible inventory.ini moved to exercise5/'
+                        """"
 
-                   // --- STEP 3: Move the inventory file to its final destination ---
-                   // sh "mv inventory.ini Project4/ansible/inventory.ini"
-                    mv inventory.ini exercise5/
-                    echo 'Ansible inventory.ini moved to Project4/ansible/'"
-
-                   """ 
+                   
                 }
             }
 
